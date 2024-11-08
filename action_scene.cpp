@@ -10,6 +10,7 @@ Title: Bike pedal... unicycle to be potentially...
 /* Link to static libraries, could define these as linker inputs in the project settings instead
 if you prefer */
 #include "glm/ext/matrix_transform.hpp"
+#include "glm/ext/vector_float3.hpp"
 #include "glm/trigonometric.hpp"
 #include <vector>
 #ifdef _DEBUG
@@ -75,11 +76,11 @@ Cylinder aCylinder;
 using namespace std;
 using namespace glm;
 
-Cylinder wheelHub[4]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
+Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
 
 static void createWheelHub()
 {
-  for (int i = 0; i<=4 ; i++) {
+  for (int i = 0; i<=4; i++) {
     wheelHub[i].makeCylinder();
   }
 }
@@ -240,14 +241,29 @@ void display()
     if(i == 1 || i == 2) { // 1 is[|  2 is |]
       model.push(model.top());
       { 
-        float DISTANCE_APART = .5f;
+        float DISTANCE_APART = .44f;
         float distanceApart = (i==1)?-DISTANCE_APART:DISTANCE_APART;
         // cout << "Distance apart: " << distanceApart << endl; 
         //couldn't get radians() working for some reason with a constant 90 degrees
         model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0)); // makes the top/bottom of the cylinder face the same side as the camera
         model.top() = translate(model.top(), vec3(0,distanceApart,0));
-        model.top() = scale(model.top(), vec3(model_scale / 2.5f, model_scale/5.f, model_scale/2.5f));
+        model.top() = scale(model.top(), vec3(model_scale/1.9f, model_scale/12.f, model_scale/1.9f));
         
+        glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+        wheelHub[i].drawCylinder(drawmode);
+      } 
+      model.pop();
+    }
+    if(i == 3 || i == 4){ // =  = at each end of [| |]
+      model.push(model.top());
+      {
+        float DISTANCE_APART = .535f;
+        float distanceApart = (i==3)?-DISTANCE_APART:DISTANCE_APART;
+        // cout << "distance apart: " << distanceApart << endl << "model scale" << model_scale << endl;
+        model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0));
+        model.top() = translate(model.top(), vec3(0,distanceApart,0));
+        model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/9.f, model_scale/10.f));
+
         glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
         wheelHub[i].drawCylinder(drawmode);
       }
@@ -324,8 +340,8 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'A') angle_inc_y -= 0.05f;
       if (key == 'R') angle_inc_z -= 0.05f;
       if (key == 'T') angle_inc_z += 0.05f;
-      if (key == 'Q') model_scale -= 0.02f;
-      if (key == 'E') model_scale += 0.02f;
+      // if (key == 'Q') model_scale -= 0.02f;
+      // if (key == 'E') model_scale += 0.02f;
       if (key == 'Z') x -= 0.05f;
       if (key == 'X') x += 0.05f;
       if (key == 'C') y -= 0.05f;
