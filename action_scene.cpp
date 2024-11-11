@@ -10,6 +10,7 @@ Title: Bike pedal... unicycle to be potentially...
 /* Link to static libraries, could define these as linker inputs in the project settings instead
 if you prefer */
 #include "glm/ext/matrix_transform.hpp"
+#include "glm/ext/scalar_constants.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/trigonometric.hpp"
 #include <vector>
@@ -54,6 +55,8 @@ GLuint emissive;
 /* Position and view globals */
 GLfloat x, y, z, light_x, light_y, light_z;
 GLfloat angle_x, angle_inc_x, angle_y, angle_inc_y, angle_z, angle_inc_z;
+GLfloat wheel_rotation, wheel_rotation_inc, paused_wheel_rotation_inc; 
+GLfloat pedal_rotation, pedal_rotation_inc, paused_pedal_rotation_inc;
 GLfloat model_scale; 
 GLfloat paused_inc_x, paused_inc_y, paused_inc_z; // for storing the paused values
 GLfloat light_intensity, is_attenuation; 
@@ -62,6 +65,7 @@ GLuint numlats, numlongs;	//Define the resolution of the sphere light_intensity 
 
 GLboolean isPaused;
 GLboolean shifting; 
+GLboolean controlPressed;
  /* Uniforms*/
 GLuint modelID, viewID, projectionID;
 GLuint colourmodeID, lightmodeID, emissiveID, lightposID, attenuationID, lightintensityID;
@@ -77,6 +81,9 @@ using namespace std;
 using namespace glm;
 
 Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
+Cube pedalCrank[2]; // the part connecting the pedal and the createWheelHub
+Cylinder pedalCrankBolt[2]; // side view of pedal [ o ] the o is a pedal crank bolt, just for higher detail.
+Cube pedal[2]; // the foot pedals
 
 static void createWheelHub()
 {
@@ -85,6 +92,26 @@ static void createWheelHub()
   }
 }
 
+static void createPedalCrank()
+{
+  for (int i = 0; i<=1; i++){
+    pedalCrank[i].makeCube(vec4(1,1,1,1));
+  }
+}
+
+static void createPedalCrankBolt()
+{
+  for (int i = 0; i<=1; i++){
+    pedalCrankBolt[i].makeCylinder(); 
+  }
+}
+
+static void createPedals()
+{
+  for (int i = 0; i < 2; i++){
+    pedal[i].makeCube(vec4(0,0,0,1));
+  }
+}
 
 /*
 This function is called before entering the main rendering loop.
@@ -94,7 +121,9 @@ void init(GLWrapper *glw)
 {
 	/* Set the object transformation controls to their initial values */
 	x = y =	z = 0;
-	// light_x = 1.6f;
+  wheel_rotation = wheel_rotation_inc = paused_wheel_rotation_inc = 0.f;  
+  pedal_rotation = pedal_rotation_inc = paused_pedal_rotation_inc = 0.f;
+  // light_x = 1.6f;
 	// light_y = 5.2f;
 	// light_z = 14.2f;
   light_x = .0f;
@@ -114,6 +143,7 @@ void init(GLWrapper *glw)
   light_intensity = .5f; 
 	isPaused = GL_FALSE;
   shifting = false;
+  controlPressed = false;
 	// Generate index (name) for one vertex array object
 	glGenVertexArrays(1, &vao);
 
@@ -145,9 +175,11 @@ void init(GLWrapper *glw)
   lightintensityID = glGetUniformLocation(program, "light_intensity");
   attenuationID = glGetUniformLocation(program, "is_attenuation");
 
-	/* create our sphere and cube objects */
-	// aSphere.makeSphere(numlats, numlongs, vec4(1.f, 0, 0.5f, 1.f));
-  createWheelHub();  
+	/* creating our wheel objects */
+  createWheelHub(); 
+  createPedalCrank();
+  createPedalCrankBolt(); 
+  createPedals();
 }
 
 /* Called to update the display. Note that this function is called in the event loop in the wrapper
@@ -156,7 +188,8 @@ void display()
 {
 	/* Define the background colour */
 	// glClearColor(0.23f,0.24f, 0.25f, 1.0f);
-	glClearColor(0.0f,0.0f, 0.0f, 1.0f);
+	// glClearColor(0.0f,0.0f, 0.0f, 1.0f);
+  glClearColor(0.227f, 0.227f, 0.227f, 1.0f);
 	/* Clear the colour and frame buffers */
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -171,7 +204,7 @@ void display()
 
 	// Camera matrix
 	mat4 view = lookAt(
-		vec3(0, 0, 4), // Camera is at (0,0,4), in World Space
+		vec3(0, 0, 6), // Camera is at (0,0,4), in World Space
 		vec3(0, 0, 0), // and looks at the origin
 		vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
 	);
@@ -196,34 +229,9 @@ void display()
 	glUniform1ui(lightmodeID, lightmode);
   glUniform1f(lightintensityID, light_intensity);
   glUniform1ui(attenuationID, is_attenuation);
- //	Push the current value of the top of the matrix onto the stack
-//	I like to add a code block here to emphasise  the section between push and pop
-//	This block of code draws the sphere
 
-	// model.push(model.top());
-	// {
-	// 	model.top() = translate(model.top(), vec3(x, 0, 0));
-	// 	model.top() = scale(model.top(), vec3(model_scale / 3.f, model_scale / 3.f, model_scale / 3.f));//scale equally in all axis
-	//
-	// 	glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-	//
-	// 	/* Draw our sphere */
-	//   aSphere.drawSphere(drawmode);
-	// }
-	// model.pop();
+  model.top() = rotate(model.top(), -radians(wheel_rotation), vec3(0,0,1)); // because a unicycle the pedals directly impact the movement of the wheel as there is no chain, the whole wheelHub/pedals would move together
   
-	model.push(model.top());
-	{
-		model.top() = translate(model.top(), vec3(0, 0, 0));
-		model.top() = scale(model.top(), vec3(model_scale / 3.f, model_scale/1.25f, model_scale / 3.f));//scale equally in all axis
-
-		glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
-
-		/* Draw our sphere */
-		aCylinder.drawCylinder(drawmode);
-	}
-	model.pop();
-
  //0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
   for (int i = 0; i<5; i++){
     if(i == 0){ // middle 
@@ -262,7 +270,7 @@ void display()
         // cout << "distance apart: " << distanceApart << endl << "model scale" << model_scale << endl;
         model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0));
         model.top() = translate(model.top(), vec3(0,distanceApart,0));
-        model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/9.f, model_scale/10.f));
+        model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/8.f, model_scale/10.f));
 
         glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
         wheelHub[i].drawCylinder(drawmode);
@@ -270,11 +278,63 @@ void display()
       model.pop();
     }
   }
-
+// drawing the pedalCranks
+  for (int i=0; i<2; i++) {
+    model.push(model.top());
+    {
+      float DISTANCE_APART = .54f;
+      float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
+      float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
+      // cout << distanceApart << endl;
+      model.top() = translate(model.top(), vec3(0, invert * .35f,distanceApart));
+      model.top() = scale(model.top(), vec3(model_scale/2.f, model_scale/0.5f, model_scale/4.8f));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      pedalCrank[i].drawCube(drawmode);
+    }
+    model.pop();
+  }
+// drawing pedalCrankBolt
+  for (int i=0; i<2; i++){
+    model.push(model.top());
+    {
+      float DISTANCE_APART = .775f+.0125f;
+      float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
+      float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
+      // cout << distanceApart << endl;
+      model.top() = translate(model.top(), vec3(0, invert * .765f,distanceApart));
+      model.top() = rotate(model.top(), radians(90.f), vec3(1,0,0));
+      model.top() = scale(model.top(), vec3(model_scale/15.f, model_scale/1.65f, model_scale/15.f));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      pedalCrankBolt[i].drawCylinder(drawmode);
+    }
+    model.pop();
+  }
+  // drawing the pedals 
+  for (int i=0; i<2; i++){
+    model.push(model.top());
+    {
+      // need a similar set up to the pedal cranks as they are attached to the end of each pedal crank
+      float DISTANCE_APART = .84f; 
+      float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
+      float invert = (i==1)?-1:1;
+      
+      model.top() = translate(model.top(), vec3(0, invert * .765f, distanceApart)); 
+      model.top() = rotate(model.top(), -radians(pedal_rotation), vec3(0,0,1));
+      model.top() = rotate(model.top(), radians(wheel_rotation), vec3(0,0,1)); 
+      model.top() = scale(model.top(), vec3(model_scale, model_scale/3.f, model_scale));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      pedal[i].drawCube(drawmode);
+    }
+    model.pop();
+  }
 	glDisableVertexAttribArray(0);
 	glUseProgram(0);
 
-	/* Modify our animation variables */
+  // pedal rotation
+  pedal_rotation += pedal_rotation_inc; 
+  //wheel rotation
+  wheel_rotation += wheel_rotation_inc; 
+  //camera rotations 
 	angle_x += angle_inc_x;
 	angle_y += angle_inc_y;
 	angle_z += angle_inc_z;
@@ -301,9 +361,22 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 		angle_inc_x = .0f; 
 		angle_inc_y = .0f;
 		angle_inc_z = .0f;
+    wheel_rotation_inc = .0f;
+    pedal_rotation_inc = .0f;
 	}
 
-  if(key == GLFW_KEY_RIGHT_SHIFT){
+  
+  if(key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL){
+    if(action == GLFW_PRESS){
+      controlPressed = true; 
+      cout << "control pressed" << endl; 
+    }else if (action == GLFW_RELEASE) {
+      controlPressed = false;
+      cout << "control released" << endl; 
+    }
+  }
+
+  if(key == GLFW_KEY_RIGHT_SHIFT || key == GLFW_KEY_LEFT_SHIFT){
     if(action == GLFW_PRESS){
       shifting = true; 
       cout << "Shift pressed" << endl; 
@@ -316,9 +389,13 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
 		isPaused = !isPaused;
 		if(isPaused){
+      paused_wheel_rotation_inc = wheel_rotation_inc; 
+      paused_pedal_rotation_inc = pedal_rotation_inc;
 			paused_inc_x = angle_inc_x; 
 			paused_inc_y = angle_inc_y;
-			paused_inc_z = angle_inc_z; 
+			paused_inc_z = angle_inc_z;
+      wheel_rotation_inc = 0.f;
+      pedal_rotation_inc = 0.f;
 			angle_inc_x = 0.f;
 			angle_inc_y = 0.f; 
 			angle_inc_z = 0.f; 
@@ -326,12 +403,16 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 			angle_inc_x = paused_inc_x; 
 			angle_inc_y = paused_inc_y; 
 			angle_inc_z = paused_inc_z;
+      wheel_rotation_inc = paused_wheel_rotation_inc;
+      pedal_rotation_inc = paused_pedal_rotation_inc;
 			paused_inc_x = 0.f; 
 			paused_inc_y = 0.f;
-			paused_inc_z = 0.f; 
+			paused_inc_z = 0.f;
+      paused_wheel_rotation_inc = 0.f; 
+      paused_pedal_rotation_inc = 0.f;
 		}
 	}
-  if(!shifting){
+  if(!shifting && !controlPressed){
     if(key == 'P' && action == GLFW_PRESS) emissive = 1 - emissive;
     if(!isPaused){
       if (key == 'W') angle_inc_x -= 0.05f;
@@ -340,8 +421,6 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'A') angle_inc_y -= 0.05f;
       if (key == 'R') angle_inc_z -= 0.05f;
       if (key == 'T') angle_inc_z += 0.05f;
-      // if (key == 'Q') model_scale -= 0.02f;
-      // if (key == 'E') model_scale += 0.02f;
       if (key == 'Z') x -= 0.05f;
       if (key == 'X') x += 0.05f;
       if (key == 'C') y -= 0.05f;
@@ -349,17 +428,32 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'B') z -= 0.05f;
       if (key == 'N') z += 0.05f;
     }
+  }else if(shifting && !controlPressed){ // when right shift is being held
+    if(!isPaused){
+      // rotate the wheel
+      if(key == 'W' && action != GLFW_RELEASE) wheel_rotation_inc += 0.1f; 
+      if(key == 'S' && action != GLFW_RELEASE) wheel_rotation_inc -= 0.1f; 
+    }
+  }else if(!shifting && controlPressed){
+    if(!isPaused){
+      //rotate the pedals
+      if(key == 'W' && action != GLFW_RELEASE) pedal_rotation_inc += .1f;
+      if(key == 'S' && action != GLFW_RELEASE) pedal_rotation_inc -= .1f; 
+    }
   }
+
   if (key == 'J') light_x -= 0.2f;
   if (key == 'L') light_x += 0.2f;
   if (key == 'K') light_y -= 0.2f; 
   if (key == 'I') light_y += 0.2f; 
   if (key == 'O') light_z -= 0.2f;
   if (key == 'U') light_z += 0.2f;
+  
+  // > key, couldn't find it in GLFW documentation
   if (key == '.' && shifting && light_intensity -.1 > .1){
     light_intensity -= .1f;
     cout << light_intensity << endl; 
-  } 
+  } // < key
   if (key == ',' && shifting){ 
     light_intensity += .1;
     cout << light_intensity << endl;
