@@ -278,8 +278,9 @@ void display()
       model.pop();
     }
   }
-// drawing the pedalCranks
+  // drawing the pedal components
   for (int i=0; i<2; i++) {
+    // pedal cranks
     model.push(model.top());
     {
       float DISTANCE_APART = .54f;
@@ -292,9 +293,8 @@ void display()
       pedalCrank[i].drawCube(drawmode);
     }
     model.pop();
-  }
-// drawing pedalCrankBolt
-  for (int i=0; i<2; i++){
+    
+    // pedal crank bolts
     model.push(model.top());
     {
       float DISTANCE_APART = .775f+.0125f;
@@ -308,9 +308,8 @@ void display()
       pedalCrankBolt[i].drawCylinder(drawmode);
     }
     model.pop();
-  }
-  // drawing the pedals 
-  for (int i=0; i<2; i++){
+
+    // pedals drawing
     model.push(model.top());
     {
       // need a similar set up to the pedal cranks as they are attached to the end of each pedal crank
@@ -319,8 +318,8 @@ void display()
       float invert = (i==1)?-1:1;
       
       model.top() = translate(model.top(), vec3(0, invert * .765f, distanceApart)); 
-      model.top() = rotate(model.top(), -radians(pedal_rotation), vec3(0,0,1));
-      model.top() = rotate(model.top(), radians(wheel_rotation), vec3(0,0,1)); 
+      model.top() = rotate(model.top(), -radians(pedal_rotation), vec3(0,0,1)); // rotating the pedals by the input given by the user
+      model.top() = rotate(model.top(), radians(wheel_rotation), vec3(0,0,1));  // rotate the pedal in the opposite direction from the main wheel rotation so that if you do not add a pedal rotation they are always flat as if you are riding it 
       model.top() = scale(model.top(), vec3(model_scale, model_scale/3.f, model_scale));
       glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
       pedal[i].drawCube(drawmode);
