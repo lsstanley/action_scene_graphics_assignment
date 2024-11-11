@@ -182,6 +182,7 @@ void init(GLWrapper *glw)
   createPedals();
 }
 
+
 /* Called to update the display. Note that this function is called in the event loop in the wrapper
 class because we registered display as a callback function */
 void display()
@@ -284,20 +285,20 @@ void display()
     model.push(model.top());
     {
       float DISTANCE_APART = .54f;
-      float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
+      float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART; // this ternary is just making each object at opposite ends
       float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
       // cout << distanceApart << endl;
-      model.top() = translate(model.top(), vec3(0, invert * .35f,distanceApart));
+      model.top() = translate(model.top(), vec3(0, invert * .35f,distanceApart)); 
       model.top() = scale(model.top(), vec3(model_scale/2.f, model_scale/0.5f, model_scale/4.8f));
       glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
       pedalCrank[i].drawCube(drawmode);
     }
     model.pop();
     
-    // pedal crank bolts
+    // pedal crank bolts, uses a similar set up to the pedal cranks
     model.push(model.top());
     {
-      float DISTANCE_APART = .775f+.0125f;
+      float DISTANCE_APART = .7875f;
       float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
       float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
       // cout << distanceApart << endl;
@@ -427,13 +428,15 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'B') z -= 0.05f;
       if (key == 'N') z += 0.05f;
     }
-  }else if(shifting && !controlPressed){ // when right shift is being held
+  }
+  if(shifting){ // when right shift is being held
     if(!isPaused){
       // rotate the wheel
       if(key == 'W' && action != GLFW_RELEASE) wheel_rotation_inc += 0.1f; 
       if(key == 'S' && action != GLFW_RELEASE) wheel_rotation_inc -= 0.1f; 
     }
-  }else if(!shifting && controlPressed){
+  }
+  if(controlPressed){
     if(!isPaused){
       //rotate the pedals
       if(key == 'W' && action != GLFW_RELEASE) pedal_rotation_inc += .1f;
