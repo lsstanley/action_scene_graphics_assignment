@@ -40,6 +40,9 @@ also includes the OpenGL extension initialisation*/
 #include "cube.h"
 #include "cylinder.h"
  
+using namespace std;
+using namespace glm;
+
 
 GLuint program;		/* Identifier for the shader program */
 GLuint vao;			/* Vertex array (Container) object. This is the index of the VAO that will be the container for
@@ -53,6 +56,8 @@ GLuint lightmode; // Uniform to switch the lightmode in the vertex shader
 GLuint emissive;
 
 /* Position and view globals */
+
+GLfloat cam_z; 
 GLfloat x, y, z, light_x, light_y, light_z;
 GLfloat angle_x, angle_inc_x, angle_y, angle_inc_y, angle_z, angle_inc_z;
 GLfloat wheel_rotation, wheel_rotation_inc, paused_wheel_rotation_inc; 
@@ -62,6 +67,14 @@ GLfloat paused_inc_x, paused_inc_y, paused_inc_z; // for storing the paused valu
 GLfloat light_intensity, is_attenuation; 
 GLuint drawmode;			// Defines drawing mode of sphere as points, lines or filled polygons
 GLuint numlats, numlongs;	//Define the resolution of the sphere light_intensity    GLuint is_attenuation; 
+
+const GLfloat WHEEL_RADIUS = 2.5f;
+const GLint WHEEL_COUNT = 20; // the amount of connecting cubes there will be for the wheel
+const GLint SPOKE_AMT = 10; // for each side of the wheel
+
+// length of each connecting cube
+// circumference / amount of cubes
+const GLfloat WHEEL_LENGTH = (2*pi<float>()*WHEEL_RADIUS)/WHEEL_COUNT;
 
 GLboolean isPaused;
 GLboolean shifting; 
@@ -73,17 +86,38 @@ GLuint colourmodeID, lightmodeID, emissiveID, lightposID, attenuationID, lightin
 GLfloat aspect_ratio;		/* Aspect ratio of the window defined in the reshape callback*/
 GLuint numspherevertices;
 
-/* Global instances of our objects */
-// Sphere aSphere;
-//Cube aCube;
-Cylinder aCylinder;
-using namespace std;
-using namespace glm;
-
 Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
-Cube pedalCrank[2]; // the part connecting the pedal and the createWheelHub
+//
+Cube pedalCrank[2]; // the part connecting the pedal and the wheel hub 
 Cylinder pedalCrankBolt[2]; // side view of pedal [ o ] the o is a pedal crank bolt, just for higher detail.
 Cube pedal[2]; // the foot pedals
+
+Cube tyre[WHEEL_COUNT];
+Cube rim[WHEEL_COUNT];
+Cube spokes[SPOKE_AMT];
+
+// ------------------------------------------------------------------ // 
+// wheel parts
+static void createTyre()
+{
+  for (int i=0; i<=WHEEL_COUNT; i++){
+    tyre[i].makeCube(vec4(0,0,0,1));
+  }
+}
+
+static void createRim()
+{
+  for (int i=0; i<=WHEEL_COUNT; i++){
+    rim[i].makeCube(vec4(1,1,1,1));
+  }
+}
+
+static void createSpokes()
+{
+  for (int i=0; i<SPOKE_AMT; i++){
+    spokes[i].makeCube(vec4(1,1,1,1));
+  }
+}
 
 static void createWheelHub()
 {
@@ -92,6 +126,8 @@ static void createWheelHub()
   }
 }
 
+// ---------------------------------------------------------------------- // 
+// pedal parts
 static void createPedalCrank()
 {
   for (int i = 0; i<=1; i++){
@@ -113,19 +149,23 @@ static void createPedals()
   }
 }
 
+
+
 /*
 This function is called before entering the main rendering loop.
 Use it for all your initialisation stuff
 */
 void init(GLWrapper *glw)
 {
-	/* Set the object transformation controls to their initial values */
+	/* Set the object transformation controls to their initial values */ 
+  cout << WHEEL_LENGTH << endl;
 	x = y =	z = 0;
   wheel_rotation = wheel_rotation_inc = paused_wheel_rotation_inc = 0.f;  
   pedal_rotation = pedal_rotation_inc = paused_pedal_rotation_inc = 0.f;
   // light_x = 1.6f;
 	// light_y = 5.2f;
-	// light_z = 14.2f;
+	// light_z = 14.2f; 
+  cam_z = 12.f; 
   light_x = .0f;
   light_y = .0f; 
   light_z = .0f;
@@ -175,8 +215,13 @@ void init(GLWrapper *glw)
   lightintensityID = glGetUniformLocation(program, "light_intensity");
   attenuationID = glGetUniformLocation(program, "is_attenuation");
 
-	/* creating our wheel objects */
+	/* creating wheel objects */
   createWheelHub(); 
+  createTyre();
+  createRim();
+  createSpokes();
+
+  /* creating the pedal parts */ 
   createPedalCrank();
   createPedalCrankBolt(); 
   createPedals();
@@ -205,7 +250,7 @@ void display()
 
 	// Camera matrix
 	mat4 view = lookAt(
-		vec3(0, 0, 6), // Camera is at (0,0,4), in World Space
+		vec3(0, 0, cam_z), // Camera is at (0,0,8), in World Space
 		vec3(0, 0, 0), // and looks at the origin
 		vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
 	);
@@ -232,13 +277,74 @@ void display()
   glUniform1ui(attenuationID, is_attenuation);
 
   model.top() = rotate(model.top(), -radians(wheel_rotation), vec3(0,0,1)); // because a unicycle the pedals directly impact the movement of the wheel as there is no chain, the whole wheelHub/pedals would move together
-  
+ 
+
+// ----------------------------------------------------------------------------------------------------------------------
+// drawing the wheel tyre and rim
+
+  for(int i = 0; i < WHEEL_COUNT; i++){
+
+    // creating the tyre
+    model.push(model.top());
+    {
+     // https://stackoverflow.com/a/13608420 converted from java to c++ for getting the points on a circumference
+ 
+      GLfloat cx =  WHEEL_RADIUS * cos(2*pi<float>()*(float(i)/WHEEL_COUNT));
+      GLfloat cy =  WHEEL_RADIUS * sin(2*pi<float>()*(float(i)/WHEEL_COUNT));
+      GLfloat ang = 360.0/WHEEL_COUNT; 
+      model.top() = translate(model.top(), vec3(cx,cy,0));
+      model.top() = rotate(model.top(), radians(ang*i), vec3(0,0,1));
+      // the .73 is a number i found from testing to make the cubes look connected. 
+      model.top() = scale(model.top(), vec3(model_scale, model_scale/(WHEEL_LENGTH*.73), model_scale));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      tyre[i].drawCube(drawmode);
+    }
+    model.pop();
+
+    // creating the rim, follows the same structure as above code except from a slight tweak to the width and cx 
+    model.push(model.top());
+    {
+      // offset of -.13 for the rims, number i liked the result for.....
+      GLfloat cx =  (WHEEL_RADIUS-.13f) * cos(2*pi<float>()*(float(i)/WHEEL_COUNT));
+      GLfloat cy =  (WHEEL_RADIUS-.13f) * sin(2*pi<float>()*(float(i)/WHEEL_COUNT));
+      GLfloat ang = 360.0/WHEEL_COUNT; 
+      model.top() = translate(model.top(), vec3(cx,cy,0));
+      model.top() = rotate(model.top(), radians(ang*i), vec3(0,0,1));
+      model.top() = scale(model.top(), vec3(model_scale/1.5, model_scale/(WHEEL_LENGTH*.73), model_scale/1.5));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      rim[i].drawCube(drawmode);
+    }
+    model.pop();
+  }
+
+  // creating the spokes
+  for (int i = 0; i<SPOKE_AMT; i++){
+    model.push(model.top());
+    {
+      const GLfloat SPOKE_RADIUS = 1/2.85f; // as the radius of a cylinder is defaulted at 1. I am using the same calculation that is being used for scaling of the wheel hub
+      
+      // getting the points similarly to the rims and wheels but around the spoke_radius instead
+      GLfloat cx = SPOKE_RADIUS * cos(2*pi<float>()*(float(i)/SPOKE_AMT));
+      GLfloat cy = SPOKE_RADIUS * sin(2*pi<float>()*(float(i)/SPOKE_AMT));
+      GLfloat ang = 360.0/SPOKE_AMT;
+      model.top() = translate(model.top(), vec3(cx,cy,0));
+      // model.top() = rotate(model.top(), radians(5.0f), vec3(1,0,0));
+      model.top() = rotate(model.top(), radians(ang*i), vec3(0,0,1));
+      model.top() = scale(model.top(), vec3(model_scale/15, model_scale*9, model_scale/15));
+      glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+      spokes[i].drawCube(drawmode);
+    }
+    model.pop();
+  }
+
+// ----------------------------------------------------------------------------------------------------------------------
+// drawing the wheel hub components
  //0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
   for (int i = 0; i<5; i++){
     if(i == 0){ // middle 
       model.push(model.top());
-      {                                   //couldn't get radians() working for some reason for a constant 90 degrees
-        model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0)); // makes the top/bottom of the cylinder face the same side as the camera
+      {                                  
+        model.top() = rotate(model.top(), radians(90.0f), vec3(1,0,0)); // makes the top/bottom of the cylinder face the same side as the camera
         model.top() = translate(model.top(), vec3(0,0,0));
         model.top() = scale(model.top(), vec3(model_scale / 3.f, model_scale/1.25f, model_scale / 3.f));
 
@@ -254,7 +360,7 @@ void display()
         float distanceApart = (i==1)?-DISTANCE_APART:DISTANCE_APART;
         // cout << "Distance apart: " << distanceApart << endl; 
         //couldn't get radians() working for some reason with a constant 90 degrees
-        model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0)); // makes the top/bottom of the cylinder face the same side as the camera
+        model.top() = rotate(model.top(), radians(90.0f), vec3(1,0,0)); // makes the top/bottom of the cylinder face the same side as the camera
         model.top() = translate(model.top(), vec3(0,distanceApart,0));
         model.top() = scale(model.top(), vec3(model_scale/1.9f, model_scale/12.f, model_scale/1.9f));
         
@@ -269,7 +375,7 @@ void display()
         float DISTANCE_APART = .535f;
         float distanceApart = (i==3)?-DISTANCE_APART:DISTANCE_APART;
         // cout << "distance apart: " << distanceApart << endl << "model scale" << model_scale << endl;
-        model.top() = rotate(model.top(), 1.5708f, vec3(1,0,0));
+        model.top() = rotate(model.top(), radians(90.0f), vec3(1,0,0));
         model.top() = translate(model.top(), vec3(0,distanceApart,0));
         model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/8.f, model_scale/10.f));
 
@@ -279,6 +385,8 @@ void display()
       model.pop();
     }
   }
+
+// ----------------------------------------------------------------------------------------------------------//
   // drawing the pedal components
   for (int i=0; i<2; i++) {
     // pedal cranks
@@ -355,16 +463,6 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 	/* Enable this call if you want to disable key responses to a held down key*/
 	//if (action != GLFW_PRESS) return;
 
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-		glfwSetWindowShouldClose(window, GL_TRUE);
-	if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS){
-		angle_inc_x = .0f; 
-		angle_inc_y = .0f;
-		angle_inc_z = .0f;
-    wheel_rotation_inc = .0f;
-    pedal_rotation_inc = .0f;
-	}
-
   
   if(key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL){
     if(action == GLFW_PRESS){
@@ -384,6 +482,20 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       shifting = false;
       cout << "shift released" << endl; 
     }
+  }
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GL_TRUE);
+	if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS && !shifting && !controlPressed){ // stops the camera rotations
+		angle_inc_x = .0f; 
+		angle_inc_y = .0f;
+		angle_inc_z = .0f;
+	} 
+  if(key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS && shifting && !controlPressed){ // stops wheel speed
+    wheel_rotation_inc = .0f; 
+  }
+  if(key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS && !shifting && controlPressed){ // stops pedal speed
+    pedal_rotation_inc = .0f;
   }
 
 	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
@@ -419,6 +531,8 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'S') angle_inc_x += 0.05f;
       if (key == 'D') angle_inc_y += 0.05f;
       if (key == 'A') angle_inc_y -= 0.05f;
+      if (key == 'Q') cam_z += 0.5f; 
+      if (key == 'E') cam_z -= 0.5f; 
       if (key == 'R') angle_inc_z -= 0.05f;
       if (key == 'T') angle_inc_z += 0.05f;
       if (key == 'Z') x -= 0.05f;
