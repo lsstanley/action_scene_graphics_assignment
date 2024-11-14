@@ -200,8 +200,8 @@ void init(GLWrapper *glw)
 	// light_y = 5.2f;
 	// light_z = 14.2f;
   cam_x = 0.f; 
-  cam_y = 5.f; 
-  cam_z = 16.f;
+  cam_y = 1.f; 
+  cam_z = 22.f;
   seat_height = 0.f;
   light_x = .0f;
   light_y = .0f; 
