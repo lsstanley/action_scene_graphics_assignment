@@ -2,7 +2,7 @@
 Author: Luke Stanley
 Matriculation No: 190010293
 Date: 4/Nov/2024
-Title: Bike pedal... unicycle to be potentially...
+Title:  Unicycle
 */
 
 
@@ -57,7 +57,7 @@ GLuint emissive;
 
 /* Position and view globals */
 
-GLfloat cam_z; 
+GLfloat cam_x, cam_y, cam_z; 
 GLfloat x, y, z, light_x, light_y, light_z;
 GLfloat angle_x, angle_inc_x, angle_y, angle_inc_y, angle_z, angle_inc_z;
 GLfloat wheel_rotation, wheel_rotation_inc, paused_wheel_rotation_inc; 
@@ -76,6 +76,9 @@ const GLint SPOKE_AMT = 10; // for each side of the wheel
 // circumference / amount of cubes
 const GLfloat WHEEL_LENGTH = (2*pi<float>()*WHEEL_RADIUS)/WHEEL_COUNT;
 
+const vec3 FRAME_COLOUR = vec3(0,0,0); //vec3 as cylinder requires colours to be vec3 
+const float MAX_SEAT_HEIGHT = 1.3f; 
+
 GLboolean isPaused;
 GLboolean shifting; 
 GLboolean controlPressed;
@@ -86,15 +89,46 @@ GLuint colourmodeID, lightmodeID, emissiveID, lightposID, attenuationID, lightin
 GLfloat aspect_ratio;		/* Aspect ratio of the window defined in the reshape callback*/
 GLuint numspherevertices;
 
-Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
+// frame parts
+Cube fork[2];// | | on each end of the wheelHub leading up to the wheel. 
+Cube forkBridge; // I'm not sure what to call it but I want to use a cylinder connecting the fork pieces together rather than just using cubes for it all
 //
+GLfloat seat_height; // adjustable variable for the height of the chair, can't exceed MAX_SEAT_HEIGHT
+Cylinder seatAdjuster; // the part of the frame that is from the fork bridge to the seat
+Cylinder seatAdjustOuter(FRAME_COLOUR); 
+
+// wheel parts
+Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
+Cube tyre[WHEEL_COUNT];
+Cube rim[WHEEL_COUNT];
+Cube spokes[SPOKE_AMT];
+
+//pedal parts
 Cube pedalCrank[2]; // the part connecting the pedal and the wheel hub 
 Cylinder pedalCrankBolt[2]; // side view of pedal [ o ] the o is a pedal crank bolt, just for higher detail.
 Cube pedal[2]; // the foot pedals
 
-Cube tyre[WHEEL_COUNT];
-Cube rim[WHEEL_COUNT];
-Cube spokes[SPOKE_AMT];
+
+// ------------------------------------------------------------------- // 
+// seat parts
+
+static void createSeatAdjuster()
+{
+  seatAdjustOuter.makeCylinder(); 
+  seatAdjuster.makeCylinder();
+}
+
+//  ------------------------------------------------------------------ // 
+// frame parts
+
+static void createFork()
+{
+  for(int i=0; i<2; i++){
+    // fork[i].makeCube(vec4(1,0.2706f,0,1)); // making them orange
+    fork[i].makeCube(vec4(FRAME_COLOUR,1)); 
+  }
+  forkBridge.makeCube(vec4(FRAME_COLOUR,1)); 
+}
 
 // ------------------------------------------------------------------ // 
 // wheel parts
@@ -164,8 +198,11 @@ void init(GLWrapper *glw)
   pedal_rotation = pedal_rotation_inc = paused_pedal_rotation_inc = 0.f;
   // light_x = 1.6f;
 	// light_y = 5.2f;
-	// light_z = 14.2f; 
-  cam_z = 12.f; 
+	// light_z = 14.2f;
+  cam_x = 0.f; 
+  cam_y = 5.f; 
+  cam_z = 16.f;
+  seat_height = 0.f;
   light_x = .0f;
   light_y = .0f; 
   light_z = .0f;
@@ -215,6 +252,11 @@ void init(GLWrapper *glw)
   lightintensityID = glGetUniformLocation(program, "light_intensity");
   attenuationID = glGetUniformLocation(program, "is_attenuation");
 
+  /* creating the seat parts */
+  createSeatAdjuster();
+  /* creating frame objects */ 
+  createFork(); 
+
 	/* creating wheel objects */
   createWheelHub(); 
   createTyre();
@@ -251,7 +293,7 @@ void display()
 	// Camera matrix
 	mat4 view = lookAt(
 		vec3(0, 0, cam_z), // Camera is at (0,0,8), in World Space
-		vec3(0, 0, 0), // and looks at the origin
+		vec3(cam_x, cam_y, 0), // and looks at the origin
 		vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
 	);
 
@@ -276,12 +318,68 @@ void display()
   glUniform1f(lightintensityID, light_intensity);
   glUniform1ui(attenuationID, is_attenuation);
 
-  model.top() = rotate(model.top(), -radians(wheel_rotation), vec3(0,0,1)); // because a unicycle the pedals directly impact the movement of the wheel as there is no chain, the whole wheelHub/pedals would move together
  
+
+
+// ----------------------------------------------------------------------------------------------------------------------
+// drawing the seat objects
+  //seat adjuster
+  model.push(model.top());
+  {
+    model.top() = translate(model.top(), vec3(0,3.71f+seat_height,0));
+    model.top() = scale(model.top(), vec3(model_scale/6, model_scale*1.3, model_scale/6));
+    glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+    seatAdjuster.drawCylinder(drawmode);
+  }
+  model.pop();
+
+
+// ----------------------------------------------------------------------------------------------------------------------
+// drawing the frame objects
+
+  // frame for the seat adjuster (i am calling it outer seat adjuster)
+  model.push(model.top());
+  {
+    model.top() = translate(model.top(), vec3(0,3.705f,0));
+    model.top() = scale(model.top(), vec3(model_scale/5, model_scale*1.3, model_scale/5));
+    glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+    seatAdjustOuter.drawCylinder(drawmode);
+  }
+  model.pop();
+
+  // the fork
+  for(int i = 0; i<3; i++){
+    if(i==0 || i==1){ // the cubes on both sides of the wheel 
+      model.push(model.top());
+      {
+        GLfloat DISTANCE_APART = .54f;
+        GLfloat distanceApart = (i%2==0)?-DISTANCE_APART:DISTANCE_APART;
+        
+        model.top() = translate(model.top(), vec3(0, 1.45f,distanceApart)); 
+        model.top() = scale(model.top(), vec3(model_scale, model_scale/0.15f, model_scale/4.8f));
+      
+        glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+        fork[i].drawCube(drawmode);
+      }
+      model.pop();
+    }
+    if(i==2){ // the fork bridge
+      model.push(model.top());
+      {
+        model.top() = translate(model.top(), vec3(0, 3.0325f, 0)); 
+        model.top() = scale(model.top(), vec3(model_scale, model_scale/3, model_scale*2));
+        glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+        forkBridge.drawCube(drawmode);
+      }
+      model.pop();
+    }
+  }
 
 // ----------------------------------------------------------------------------------------------------------------------
 // drawing the wheel tyre and rim
 
+
+  model.top() = rotate(model.top(), -radians(wheel_rotation), vec3(0,0,1)); // because a unicycle the pedals directly impact the movement of the wheel as there is no chain, the whole wheelHub/pedals all would move together
   for(int i = 0; i < WHEEL_COUNT; i++){
 
     // creating the tyre
@@ -372,12 +470,12 @@ void display()
     if(i == 3 || i == 4){ // =  = at each end of [| |]
       model.push(model.top());
       {
-        float DISTANCE_APART = .535f;
+        float DISTANCE_APART = .59f;
         float distanceApart = (i==3)?-DISTANCE_APART:DISTANCE_APART;
         // cout << "distance apart: " << distanceApart << endl << "model scale" << model_scale << endl;
         model.top() = rotate(model.top(), radians(90.0f), vec3(1,0,0));
         model.top() = translate(model.top(), vec3(0,distanceApart,0));
-        model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/8.f, model_scale/10.f));
+        model.top() = scale(model.top(), vec3(model_scale/10.f, model_scale/4.35f, model_scale/10.f));
 
         glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
         wheelHub[i].drawCylinder(drawmode);
@@ -392,12 +490,12 @@ void display()
     // pedal cranks
     model.push(model.top());
     {
-      float DISTANCE_APART = .54f;
+      float DISTANCE_APART = .645f;
       float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART; // this ternary is just making each object at opposite ends
       float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
       // cout << distanceApart << endl;
-      model.top() = translate(model.top(), vec3(0, invert * .35f,distanceApart)); 
-      model.top() = scale(model.top(), vec3(model_scale/2.f, model_scale/0.5f, model_scale/4.8f));
+      model.top() = translate(model.top(), vec3(0, invert * .55f,distanceApart)); 
+      model.top() = scale(model.top(), vec3(model_scale/2.f, model_scale/0.35f, model_scale/4.8f));
       glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
       pedalCrank[i].drawCube(drawmode);
     }
@@ -406,11 +504,11 @@ void display()
     // pedal crank bolts, uses a similar set up to the pedal cranks
     model.push(model.top());
     {
-      float DISTANCE_APART = .7875f;
+      float DISTANCE_APART = .892f;
       float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
       float invert = (i==1)?-1:1; //this is to make the cranks opposite directions from each other
       // cout << distanceApart << endl;
-      model.top() = translate(model.top(), vec3(0, invert * .765f,distanceApart));
+      model.top() = translate(model.top(), vec3(0, invert * 1.175f,distanceApart));
       model.top() = rotate(model.top(), radians(90.f), vec3(1,0,0));
       model.top() = scale(model.top(), vec3(model_scale/15.f, model_scale/1.65f, model_scale/15.f));
       glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
@@ -422,11 +520,11 @@ void display()
     model.push(model.top());
     {
       // need a similar set up to the pedal cranks as they are attached to the end of each pedal crank
-      float DISTANCE_APART = .84f; 
+      float DISTANCE_APART = .942f; 
       float distanceApart = (i==0)?-DISTANCE_APART:DISTANCE_APART;
       float invert = (i==1)?-1:1;
       
-      model.top() = translate(model.top(), vec3(0, invert * .765f, distanceApart)); 
+      model.top() = translate(model.top(), vec3(0, invert * 1.175f, distanceApart)); 
       model.top() = rotate(model.top(), -radians(pedal_rotation), vec3(0,0,1)); // rotating the pedals by the input given by the user
       model.top() = rotate(model.top(), radians(wheel_rotation), vec3(0,0,1));  // rotate the pedal in the opposite direction from the main wheel rotation so that if you do not add a pedal rotation they are always flat as if you are riding it 
       model.top() = scale(model.top(), vec3(model_scale, model_scale/3.f, model_scale));
@@ -531,8 +629,6 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if (key == 'S') angle_inc_x += 0.05f;
       if (key == 'D') angle_inc_y += 0.05f;
       if (key == 'A') angle_inc_y -= 0.05f;
-      if (key == 'Q') cam_z += 0.5f; 
-      if (key == 'E') cam_z -= 0.5f; 
       if (key == 'R') angle_inc_z -= 0.05f;
       if (key == 'T') angle_inc_z += 0.05f;
       if (key == 'Z') x -= 0.05f;
@@ -548,6 +644,13 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       // rotate the wheel
       if(key == 'W' && action != GLFW_RELEASE) wheel_rotation_inc += 0.1f; 
       if(key == 'S' && action != GLFW_RELEASE) wheel_rotation_inc -= 0.1f; 
+      if (key == 'J') cam_x -= 0.5f;
+      if (key == 'L') cam_x += 0.5f;
+      if (key == 'K') cam_y -= 0.5f; 
+      if (key == 'I') cam_y += 0.5f; 
+      if (key == 'U') cam_z += 0.5f; 
+      if (key == 'O') cam_z -= 0.5f; 
+
     }
   }
   if(controlPressed){
@@ -557,7 +660,8 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       if(key == 'S' && action != GLFW_RELEASE) pedal_rotation_inc -= .1f; 
     }
   }
-
+  if (key == GLFW_KEY_UP && action != GLFW_RELEASE && seat_height+0.025 <= MAX_SEAT_HEIGHT) seat_height += .025f;
+  if (key == GLFW_KEY_DOWN && action != GLFW_RELEASE && seat_height-0.025 > 0) seat_height -= .025f; 
   if (key == 'J') light_x -= 0.2f;
   if (key == 'L') light_x += 0.2f;
   if (key == 'K') light_y -= 0.2f; 
