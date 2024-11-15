@@ -288,6 +288,7 @@ void init(GLWrapper *glw)
   cout << "r/t           | rotate across z axis" << endl; 
   cout << "Shift + i/k   | move camera target zone up/down" << endl; 
   cout << "Shift + j/l   | move camera target zone left/right" << endl;
+  cout << "Shift + u/o   | zoom camera in/out" << endl; 
   cout << "Backspace     | stop all camera rotations" << endl;  
   cout << endl; 
   cout << "--------" << endl; 
@@ -297,11 +298,12 @@ void init(GLWrapper *glw)
   cout << "u/o           | move light source closer/further" << endl; 
   cout << "Shift + ,/.   | change light intensity (starts off at max already)" << endl;
   cout << ";             | toggle attenuation" << endl; 
+  cout << ".             | change lighting mode between phong specular and blinn phong" << endl;
   cout << endl; 
   cout << "--------" << endl;
   cout << "Misc:" << endl; 
-  cout << ".             | change lighting mode between phong specular and blinn phong" << endl;
-  cout << "Space         | pause all rotations" << endl;  
+  cout << "Space         | pause all rotations" << endl;
+  cout << endl; 
 
 }
 
@@ -695,10 +697,10 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
       // rotate the wheel
       if(key == 'W' && action != GLFW_RELEASE) wheel_rotation_inc += 0.1f; 
       if(key == 'S' && action != GLFW_RELEASE) wheel_rotation_inc -= 0.1f; 
-      if (key == 'J') cam_x -= 0.5f;
-      if (key == 'L') cam_x += 0.5f;
-      if (key == 'K') cam_y -= 0.5f; 
-      if (key == 'I') cam_y += 0.5f; 
+      if (key == 'J') cam_x += 0.5f;
+      if (key == 'L') cam_x -= 0.5f;
+      if (key == 'K') cam_y += 0.5f; 
+      if (key == 'I') cam_y -= 0.5f; 
       if (key == 'U') cam_z += 0.5f; 
       if (key == 'O') cam_z -= 0.5f; 
 
@@ -713,8 +715,8 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
   }
   if (key == GLFW_KEY_UP && action != GLFW_RELEASE && seat_height+0.025 <= MAX_SEAT_HEIGHT) seat_height += .025f;
   if (key == GLFW_KEY_DOWN && action != GLFW_RELEASE && seat_height-0.025 > 0) seat_height -= .025f; 
-  if (key == 'J') light_x -= 0.2f;
-  if (key == 'L') light_x += 0.2f;
+  if (key == 'J') light_x += 0.2f;
+  if (key == 'L') light_x -= 0.2f;
   if (key == 'K') light_y -= 0.2f; 
   if (key == 'I') light_y += 0.2f; 
   if (key == 'O') light_z -= 0.2f;
