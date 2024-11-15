@@ -25,18 +25,18 @@ if you prefer */
 also includes the OpenGL extension initialisation*/
 #include "wrapper_glfw.h"
 #include <iostream>
-
 // We'll use the STD stack class to make our stack or matrices
 #include <stack>
 
 /* Include GLM core and matrix extensions*/
+
 #include <glm/glm.hpp>
 #include "glm/gtc/matrix_transform.hpp"
 #include <glm/gtc/type_ptr.hpp>
 
 
 // Include headers for our objects
-#include "sphere.h"
+#include "triangular_prism.h"
 #include "cube.h"
 #include "cylinder.h"
  
@@ -84,7 +84,7 @@ GLboolean shifting;
 GLboolean controlPressed;
  /* Uniforms*/
 GLuint modelID, viewID, projectionID;
-GLuint colourmodeID, lightmodeID, emissiveID, lightposID, attenuationID, lightintensityID;
+GLuint colourmodeID, lightmodeID, emissiveID, lightposID, attenuationID, lightintensityID, shininessID;
 
 GLfloat aspect_ratio;		/* Aspect ratio of the window defined in the reshape callback*/
 GLuint numspherevertices;
@@ -96,6 +96,7 @@ Cube forkBridge; // I'm not sure what to call it but I want to use a cylinder co
 GLfloat seat_height; // adjustable variable for the height of the chair, can't exceed MAX_SEAT_HEIGHT
 Cylinder seatAdjuster; // the part of the frame that is from the fork bridge to the seat
 Cylinder seatAdjustOuter(FRAME_COLOUR); 
+TriangularPrism seat; 
 
 // wheel parts
 Cylinder wheelHub[5]; // all the different parts required for the wheel hub. 0 is the middle, 1 is the left [| 2 is |] 3 is left = 4 is right =  =[|==|]= 
@@ -111,6 +112,11 @@ Cube pedal[2]; // the foot pedals
 
 // ------------------------------------------------------------------- // 
 // seat parts
+//
+static void createSeat()
+{
+  seat.makeTPrism(vec3(0,0,0));
+}
 
 static void createSeatAdjuster()
 {
@@ -192,20 +198,17 @@ Use it for all your initialisation stuff
 void init(GLWrapper *glw)
 {
 	/* Set the object transformation controls to their initial values */ 
-  cout << WHEEL_LENGTH << endl;
 	x = y =	z = 0;
   wheel_rotation = wheel_rotation_inc = paused_wheel_rotation_inc = 0.f;  
   pedal_rotation = pedal_rotation_inc = paused_pedal_rotation_inc = 0.f;
-  // light_x = 1.6f;
-	// light_y = 5.2f;
-	// light_z = 14.2f;
+
   cam_x = 0.f; 
-  cam_y = 1.f; 
+  cam_y = 1.5f; 
   cam_z = 22.f;
   seat_height = 0.f;
-  light_x = .0f;
-  light_y = .0f; 
-  light_z = .0f;
+  light_x = 1.2f; // default light settings for the scene that i quite like
+  light_y = 1.8f; 
+  light_z = 4.6f;
 	angle_x = angle_y = angle_z = 0;
 	angle_inc_x = angle_inc_y = angle_inc_z = 0;
 	paused_inc_x = paused_inc_y = paused_inc_z = 0; 
@@ -217,7 +220,7 @@ void init(GLWrapper *glw)
 	numlats = 80;		// Number of latitudes in our sphere
 	numlongs = 80;		// Number of longitudes in our sphere
   is_attenuation = 1; 
-  light_intensity = .5f; 
+  light_intensity = .1f; 
 	isPaused = GL_FALSE;
   shifting = false;
   controlPressed = false;
@@ -244,8 +247,7 @@ void init(GLWrapper *glw)
 	colourmodeID = glGetUniformLocation(program, "colourmode");
 	lightmodeID = glGetUniformLocation(program, "lightmode");
 	lightposID = glGetUniformLocation(program, "lightpos");
-
-	cout << "lightposID:" << lightposID << endl; 
+  shininessID = glGetUniformLocation(program, "shininess");
 	emissiveID = glGetUniformLocation(program, "is_emissive");
 	viewID = glGetUniformLocation(program, "view");
 	projectionID = glGetUniformLocation(program, "projection");
@@ -253,6 +255,7 @@ void init(GLWrapper *glw)
   attenuationID = glGetUniformLocation(program, "is_attenuation");
 
   /* creating the seat parts */
+  createSeat(); 
   createSeatAdjuster();
   /* creating frame objects */ 
   createFork(); 
@@ -267,6 +270,39 @@ void init(GLWrapper *glw)
   createPedalCrank();
   createPedalCrankBolt(); 
   createPedals();
+
+  cout << "Controls" << endl;
+  cout << endl; 
+  cout << "--------" << endl; 
+  cout << "Unicycle:" << endl;
+  cout << "Shift + w/s   | pedal unicycle" << endl; 
+  cout << "Control + w/s | spin pedals" << endl;
+  cout << "up/down arrow | move seat up/down" << endl;
+  cout << "Shift + Backspace | Stop wheel rotation" << endl; 
+  cout << "Control + Backspace | Stop pedal rotation" << endl; 
+  cout << endl; 
+  cout << "--------" << endl; 
+  cout << "Camera:" << endl;
+  cout << "w/s           | rotate across x axis" << endl; 
+  cout << "a/d           | rotate across y axis" << endl; 
+  cout << "r/t           | rotate across z axis" << endl; 
+  cout << "Shift + i/k   | move camera target zone up/down" << endl; 
+  cout << "Shift + j/l   | move camera target zone left/right" << endl;
+  cout << "Backspace     | stop all camera rotations" << endl;  
+  cout << endl; 
+  cout << "--------" << endl; 
+  cout << "Lighting:" << endl; 
+  cout << "i/k           | move light source up/down" << endl; 
+  cout << "j/l           | move light source left/right" << endl; 
+  cout << "u/o           | move light source closer/further" << endl; 
+  cout << "Shift + ,/.   | change light intensity (starts off at max already)" << endl;
+  cout << ";             | toggle attenuation" << endl; 
+  cout << endl; 
+  cout << "--------" << endl;
+  cout << "Misc:" << endl; 
+  cout << ".             | change lighting mode between phong specular and blinn phong" << endl;
+  cout << "Space         | pause all rotations" << endl;  
+
 }
 
 
@@ -323,6 +359,19 @@ void display()
 
 // ----------------------------------------------------------------------------------------------------------------------
 // drawing the seat objects
+  
+  //seat 
+  model.push(model.top()); 
+  {
+    model.top() = translate(model.top(),vec3(.1,4.45+seat_height,0));
+
+    model.top() = rotate(model.top(), radians(90.f), vec3(0,1,0));
+    model.top() = rotate(model.top(), radians(90.f), vec3(1,0,0));
+    model.top() = scale(model.top(), vec3(model_scale, model_scale*2,model_scale/4)); 
+    glUniformMatrix4fv(modelID, 1, GL_FALSE, &(model.top()[0][0]));
+    seat.drawTPrism(drawmode); 
+  }
+  model.pop(); 
   //seat adjuster
   model.push(model.top());
   {
@@ -419,7 +468,7 @@ void display()
   for (int i = 0; i<SPOKE_AMT; i++){
     model.push(model.top());
     {
-      const GLfloat SPOKE_RADIUS = 1/2.85f; // as the radius of a cylinder is defaulted at 1. I am using the same calculation that is being used for scaling of the wheel hub
+      const GLfloat SPOKE_RADIUS = 1/2.85f; // as the radius of a cylinder is defaulted at 0. I am using the same calculation that is being used for scaling of the wheel hub
       
       // getting the points similarly to the rims and wheels but around the spoke_radius instead
       GLfloat cx = SPOKE_RADIUS * cos(2*pi<float>()*(float(i)/SPOKE_AMT));
@@ -536,6 +585,8 @@ void display()
 	glDisableVertexAttribArray(0);
 	glUseProgram(0);
 
+
+  // cout << light_x << "," << light_y << "," << light_z << endl;
   // pedal rotation
   pedal_rotation += pedal_rotation_inc; 
   //wheel rotation
@@ -565,20 +616,20 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
   if(key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL){
     if(action == GLFW_PRESS){
       controlPressed = true; 
-      cout << "control pressed" << endl; 
+      // cout << "control pressed" << endl; 
     }else if (action == GLFW_RELEASE) {
       controlPressed = false;
-      cout << "control released" << endl; 
+      // cout << "control released" << endl; 
     }
   }
 
   if(key == GLFW_KEY_RIGHT_SHIFT || key == GLFW_KEY_LEFT_SHIFT){
     if(action == GLFW_PRESS){
       shifting = true; 
-      cout << "Shift pressed" << endl; 
+      // cout << "Shift pressed" << endl; 
     }else if (action == GLFW_RELEASE) {
       shifting = false;
-      cout << "shift released" << endl; 
+      // cout << "shift released" << endl; 
     }
   }
 
@@ -672,18 +723,18 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
   // > key, couldn't find it in GLFW documentation
   if (key == '.' && shifting && light_intensity -.1 > .1){
     light_intensity -= .1f;
-    cout << light_intensity << endl; 
+    // cout << light_intensity << endl; 
   } // < key
   if (key == ',' && shifting){ 
     light_intensity += .1;
-    cout << light_intensity << endl;
+    // cout << light_intensity << endl;
   }
 	if (key == 'M' && action != GLFW_PRESS)	colourmode = !colourmode;
 	if (key == '.' && action != GLFW_PRESS && !shifting)
 	{
 		lightmode++;
 		if (lightmode > 1) lightmode = 0; 
-		cout << lightmode << endl;
+		// cout << lightmode << endl;
 
 	}
 
@@ -705,7 +756,7 @@ static void keyCallback(GLFWwindow* window, int key, int s, int action, int mods
 /* Entry point of program */
 int main(int argc, char* argv[])
 {
-	GLWrapper *glw = new GLWrapper(1024, 768, "Lab3 start example");;
+	GLWrapper *glw = new GLWrapper(1024, 768, "AC41004 Unicycle");;
 
 	// glad: load all OpenGL function pointers
 	// ---------------------------------------
